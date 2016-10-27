@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 """Sphinx directive for ansi-formatted output
 
+Runs Python code interactively, records the input and output,
+and converts to html.
+
 sphinxcontrib-ansi seems to be the right thing to use, but it's
 missing sequences. It does the right thing and remove color when
-output format isn't html. This just always outputs raw html.  """
+output format isn't html. This just always outputs raw html.
+"""
 import re
 import sys
 from textwrap import dedent
@@ -52,10 +56,12 @@ def default_colors_to_resets(s):
     return s.replace('[39m', '[0m').replace('[49m', '[0m')
 
 def run_lines(lines):
-    child = pexpect.spawn(sys.executable + ' -i')
+    if sys.version_info[0] < 3:
+        child = pexpect.spawn(sys.executable + ' -i')
+    else:
+        child = pexpect.spawn(sys.executable + ' -i', encoding='utf8')
     out = StringIO()
     child.logfile_read = out
-    #TODO make this detect `...` when it shouldn't be there, forgot a )
     for line in lines:
         child.expect(['>>> ', '... '])
         child.sendline(line)
@@ -79,16 +85,20 @@ class PythonTerminalDirective(Directive):
 
     def run(self):
         text = default_colors_to_resets(run_lines(get_lines('\n'.join(self.content))))
-        return [python_terminal_block(text.decode('utf8'), text.decode('utf8'))]
+        if sys.version_info[0] < 3:
+            text = text.decode('utf8')
+        return [python_terminal_block(text, text)]
 
 def setup(app):
     app.add_directive('python_terminal_session', PythonTerminalDirective)
     app.connect('doctree-resolved', ANSIHTMLParser())
 
 if __name__ == '__main__':
-    print htmlize(run_lines(get_lines("""
+    lines = get_lines("""
         from curtsies.fmtfuncs import blue
-        blue('hello')
-        print blue('hello')
-        """)))
-
+        blue(u'hello')
+        print(blue(u'hello'))
+        """)
+    lines = run_lines(lines)
+    html = htmlize(lines)
+    print(html)
